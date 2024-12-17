@@ -114,10 +114,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 This system is designed as a supplementary safety measure and should not be relied upon as the sole fire detection system. Always ensure you have proper smoke detectors and fire safety equipment installed according to local regulations.
 
-## 🤝 Support
-
-For support, please open an issue in the repository or contact [your-contact-info].
-
 ## 🙏 Acknowledgments
 
 - YOLOv5 by Ultralytics
