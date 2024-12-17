@@ -121,5 +121,6 @@ For support, please open an issue in the repository or contact [your-contact-inf
 ## 🙏 Acknowledgments
 
 - YOLOv5 by Ultralytics
+- [spacewalk01's Pre-trained Model for Fire Detection](https://github.com/spacewalk01/yolov5-fire-detection/tree/main/model)
 - OpenCV community
 - React and Flask communities
