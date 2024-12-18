@@ -39,33 +39,33 @@ class DataHandler:
         """Collect data at specified intervals and emit to frontend"""
         while self.is_running:
             try:
-                # Get current status
-                status = self.gpio_handler.get_status()
-                
+                # Get current status from both GPIO handler and alarm handler
+                gpio_status = self.gpio_handler.get_status()
+                alarm_status = self.alarm_handler.get_status()
+
                 # Create data point
                 data_point = {
                     'timestamp': datetime.now().isoformat(),
-                    'smoke_detected': status['smoke_detected'],
-                    'alarm_active': status['alarm_active'],
-                    'alarm_enabled': status['alarm_enabled']
+                    'smoke_detected': gpio_status['smoke_detected'],
+                    'alarm_active': alarm_status['is_active'],
+                    'alarm_enabled': alarm_status['is_enabled']
                 }
-                
+
                 # Add to data points list
                 self.data_points.append(data_point)
-                
+
                 # Keep only the last max_data_points
                 if len(self.data_points) > self.max_data_points:
                     self.data_points.pop(0)
-                
+
                 # Emit current data point and full dataset
                 self.socketio.emit('new_data_point', data_point)
                 self.socketio.emit('full_dataset', {
                     'data': self.data_points,
                     'summary': self._generate_summary()
                 })
-                
+
                 time.sleep(self.interval)
-                
             except Exception as e:
                 print(f"Error collecting data: {str(e)}")
                 time.sleep(self.interval)
