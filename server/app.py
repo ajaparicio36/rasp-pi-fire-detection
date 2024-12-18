@@ -67,7 +67,7 @@ def handle_get_status():
 
 if __name__ == '__main__':
     try:
-        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+        socketio.run(app, host='0.0.0.0', port=5000, debug=False)
     finally:
         gpio_handler.cleanup()
         alarm_handler.cleanup()
