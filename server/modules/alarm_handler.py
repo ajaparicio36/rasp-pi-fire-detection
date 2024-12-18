@@ -5,6 +5,8 @@ except ImportError:
     print("Running in development mode - GPIO functions will be mocked")
     from modules.mock_gpio import GPIO
 
+
+
 class AlarmHandler:
     def __init__(self, alarm_pin=12):
         """
@@ -21,8 +23,12 @@ class AlarmHandler:
     def setup_alarm(self):
         """Setup alarm GPIO pin"""
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.alarm_pin, GPIO.OUT)
-        GPIO.output(self.alarm_pin, GPIO.LOW)
+        try:
+            GPIO.setup(self.alarm_pin, GPIO.OUT)
+        except RuntimeError as e:
+            print(f"Error setting up GPIO pin {self.alarm_pin}: {str(e)}")
+            # Handle the error, e.g., use a different pin or log the issue
+            GPIO.output(self.alarm_pin, GPIO.LOW)
 
     def activate(self):
         """Activate the alarm if it's enabled"""

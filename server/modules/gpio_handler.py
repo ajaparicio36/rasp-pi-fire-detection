@@ -9,7 +9,7 @@ class GPIOHandler:
     def __init__(self, smoke_detector_pin=11):
         """
         Initialize GPIO handler for smoke detector
-        
+
         Args:
             smoke_detector_pin (int): GPIO pin number for smoke detector input
         """
@@ -20,26 +20,37 @@ class GPIOHandler:
     def setup_gpio(self):
         """Setup GPIO pins and initial states"""
         GPIO.setmode(GPIO.BCM)
-        
+
         # Setup smoke detector pin as input with pull-down resistor
-        GPIO.setup(self.smoke_detector_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        
+        try:
+            GPIO.setup(self.smoke_detector_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        except RuntimeError as e:
+            print(f"Error setting up GPIO pin {self.smoke_detector_pin} as input: {str(e)}")
+            raise
+        except ValueError as e:
+            print(f"Invalid GPIO pin number {self.smoke_detector_pin}: {str(e)}")
+            raise
+
         # Add event detection for smoke detector
         try:
             GPIO.add_event_detect(
-                self.smoke_detector_pin, 
-                GPIO.BOTH, 
+                self.smoke_detector_pin,
+                GPIO.BOTH,
                 callback=self._handle_smoke_detection,
                 bouncetime=300
             )
-        except Exception as e:
-            print(f"Error setting up GPIO event detection: {str(e)}")
+        except RuntimeError as e:
+            print(f"Error setting up GPIO event detection on pin {self.smoke_detector_pin}: {str(e)}")
+            raise
+        except ValueError as e:
+            print(f"Invalid GPIO pin number {self.smoke_detector_pin} for event detection: {str(e)}")
+            raise
 
     def add_callback(self, callback):
         """Add a callback function to be called when smoke is detected"""
         self.callbacks.append(callback)
 
-    def _handle_smoke_detection(self, channel):
+    def _handle_smoke_detection(self, _):
         """
         Callback function for smoke detection events
         Args:
