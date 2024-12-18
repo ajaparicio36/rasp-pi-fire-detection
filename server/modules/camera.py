@@ -7,23 +7,39 @@ from threading import Thread
 import time
 
 class CameraHandler:
-    def __init__(self, camera_index=2, fps=10, model_path='model/yolov5s_best.pt'):
-        # Initialize camera
-        self.camera = cv2.VideoCapture(camera_index)
-        if not self.camera.isOpened():
-            print(f"Error: Camera at index {camera_index} could not be opened.")
-            self.camera_available = False
-        else:
-            self.camera_available = True
-
-        # Validate model path
+    def __init__(self, camera_index_range=(0, 3), fps=10, model_path='model/yolov5s_best.pt'):
+        self.camera_index_range = camera_index_range
+        self.camera = None
+        self.camera_available = False
+        self.fps = fps
+        self.frame_interval = 1 / fps
+        self.is_running = False
         self.model_path = os.path.abspath(model_path)
+        self.model = None
+        self.fire_detected = False
+        self.fire_confidence = 0.0
+
+        self.find_available_camera()
+
+    def find_available_camera(self):
+        for index in range(self.camera_index_range[0], self.camera_index_range[1] + 1):
+            self.camera = cv2.VideoCapture(index)
+            if self.camera.isOpened():
+                print(f"Camera found at index {index}")
+                self.camera_available = True
+                break
+            else:
+                self.camera.release()
+                self.camera = None
+
+        if not self.camera_available:
+            print("No camera found in the given range.")
+
         if not os.path.exists(self.model_path):
             print(f"Warning: Model file not found at {self.model_path}")
             print("Fire detection will be disabled.")
             self.model = None
         else:
-            # Initialize YOLOv5 fire detection model
             try:
                 self.model = torch.hub.load('ultralytics/yolov5', 'custom', path=self.model_path)
             except Exception as e:
@@ -31,24 +47,14 @@ class CameraHandler:
                 print("Fire detection will be disabled.")
                 self.model = None
 
-        # Tracking variables
-        self.is_running = False
-        self.fps = fps
-        self.frame_interval = 1 / fps
-
-        # Fire detection state
-        self.fire_detected = False
-        self.fire_confidence = 0.0
-
     def start(self, socketio):
-        """Start the camera feed with fire detection"""
         if self.camera_available:
             self.is_running = True
             self.thread = Thread(target=self._stream_frames, args=(socketio,))
             self.thread.daemon = True
             self.thread.start()
         else:
-            print("Camera is not available, cannot start the feed.")
+            print("No camera available, cannot start the feed.")
 
     # Rest of the code remains the same
         
