@@ -7,7 +7,7 @@ from threading import Thread
 import time
 
 class CameraHandler:
-    def __init__(self, camera_index=0, fps=10, model_path='model/yolov5s_best.pt'):
+    def __init__(self, camera_index=2, fps=10, model_path='model/yolov5s_best.pt'):
         # Initialize camera
         self.camera = cv2.VideoCapture(camera_index)
         if not self.camera.isOpened():
