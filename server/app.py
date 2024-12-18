@@ -38,6 +38,8 @@ def handle_connect():
     print('Client connected')
     camera_handler.start(socketio)
     data_handler.start(socketio)
+    gpio_handler.start_detection()  # Start the detection thread
+    
     # Send initial status
     status = {
         **gpio_handler.get_status(),
@@ -51,6 +53,7 @@ def handle_disconnect():
     print('Client disconnected')
     camera_handler.stop()
     data_handler.stop()
+    gpio_handler.stop_detection()  # Stop the detection thread
 
 @socketio.on('toggle_alarm')
 def handle_toggle_alarm():
