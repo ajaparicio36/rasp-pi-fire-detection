@@ -1,3 +1,10 @@
+# modules/gpio_handler.py
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    print("Running in development mode - GPIO functions will be mocked")
+    from modules.mock_gpio import GPIO
+
 class GPIOHandler:
     def __init__(self, smoke_detector_pin=11):
         """

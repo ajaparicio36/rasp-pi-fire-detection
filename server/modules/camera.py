@@ -7,10 +7,15 @@ from threading import Thread
 import time
 
 class CameraHandler:
-    def __init__(self, fps=10, model_path='model/yolov5s_best.pt'):
+    def __init__(self, camera_index=0, fps=10, model_path='model/yolov5s_best.pt'):
         # Initialize camera
-        self.camera = cv2.VideoCapture(0)
-        
+        self.camera = cv2.VideoCapture(camera_index)
+        if not self.camera.isOpened():
+            print(f"Error: Camera at index {camera_index} could not be opened.")
+            self.camera_available = False
+        else:
+            self.camera_available = True
+
         # Validate model path
         self.model_path = os.path.abspath(model_path)
         if not os.path.exists(self.model_path):
@@ -25,22 +30,27 @@ class CameraHandler:
                 print(f"Error loading YOLOv5 model: {e}")
                 print("Fire detection will be disabled.")
                 self.model = None
-        
+
         # Tracking variables
         self.is_running = False
         self.fps = fps
         self.frame_interval = 1 / fps
-        
+
         # Fire detection state
         self.fire_detected = False
         self.fire_confidence = 0.0
-        
+
     def start(self, socketio):
         """Start the camera feed with fire detection"""
-        self.is_running = True
-        self.thread = Thread(target=self._stream_frames, args=(socketio,))
-        self.thread.daemon = True
-        self.thread.start()
+        if self.camera_available:
+            self.is_running = True
+            self.thread = Thread(target=self._stream_frames, args=(socketio,))
+            self.thread.daemon = True
+            self.thread.start()
+        else:
+            print("Camera is not available, cannot start the feed.")
+
+    # Rest of the code remains the same
         
     def stop(self):
         """Stop the camera feed"""
