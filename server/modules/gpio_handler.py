@@ -31,21 +31,6 @@ class GPIOHandler:
             print(f"Invalid GPIO pin number {self.smoke_detector_pin}: {str(e)}")
             raise
 
-        # Add event detection for smoke detector
-        try:
-            GPIO.add_event_detect(
-                self.smoke_detector_pin,
-                GPIO.BOTH,
-                callback=self._handle_smoke_detection,
-                bouncetime=300
-            )
-        except RuntimeError as e:
-            print(f"Error setting up GPIO event detection on pin {self.smoke_detector_pin}: {str(e)}")
-            raise
-        except ValueError as e:
-            print(f"Invalid GPIO pin number {self.smoke_detector_pin} for event detection: {str(e)}")
-            raise
-
     def add_callback(self, callback):
         """Add a callback function to be called when smoke is detected"""
         self.callbacks.append(callback)
