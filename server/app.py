@@ -12,8 +12,8 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initialize handlers
 camera_handler = CameraHandler(fps=20)
-alarm_handler = AlarmHandler(alarm_pin=18)
-gpio_handler = GPIOHandler(smoke_detector_pin=17)
+alarm_handler = AlarmHandler(alarm_pin=12)
+gpio_handler = GPIOHandler(smoke_detector_pin=11)
 data_handler = DataHandler(gpio_handler, alarm_handler, interval=1.0)
 
 def handle_smoke_detection(is_smoke_detected):
