@@ -5,15 +5,17 @@ import time
 import json
 
 class DataHandler:
-    def __init__(self, gpio_handler, interval=1.0):
+    def __init__(self, gpio_handler, alarm_handler, interval=1.0):
         """
         Initialize the data handler
         
         Args:
             gpio_handler: Instance of GPIOHandler to get smoke detector data
+            alarm_handler: Instance of AlarmHandler
             interval (float): Data collection interval in seconds
         """
         self.gpio_handler = gpio_handler
+        self.alarm_handler = alarm_handler
         self.interval = interval
         self.is_running = False
         self.data_points = []
