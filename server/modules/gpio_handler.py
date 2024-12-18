@@ -6,7 +6,7 @@ except ImportError:
     from modules.mock_gpio import GPIO
 
 class GPIOHandler:
-    def __init__(self, smoke_detector_pin=11):
+    def __init__(self, smoke_detector_pin=18):
         """
         Initialize GPIO handler for smoke detector
 
