@@ -7,7 +7,7 @@ from threading import Thread
 import time
 
 class CameraHandler:
-    def __init__(self, camera_index_range=(0, 3), fps=10, model_path='model/yolov5s_best.pt'):
+    def __init__(self, camera_index_range=(0, 10), fps=10, model_path='model/yolov5s_best.pt'):
         self.camera_index_range = camera_index_range
         self.camera = None
         self.camera_available = False
