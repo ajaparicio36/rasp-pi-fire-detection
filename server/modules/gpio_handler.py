@@ -1,10 +1,3 @@
-# modules/gpio_handler.py
-try:
-    import RPi.GPIO as GPIO
-except ImportError:
-    print("Running in development mode - GPIO functions will be mocked")
-    from modules.mock_gpio import GPIO
-
 class GPIOHandler:
     def __init__(self, smoke_detector_pin=11):
         """
@@ -20,16 +13,20 @@ class GPIOHandler:
     def setup_gpio(self):
         """Setup GPIO pins and initial states"""
         GPIO.setmode(GPIO.BCM)
+        
         # Setup smoke detector pin as input with pull-down resistor
         GPIO.setup(self.smoke_detector_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         
         # Add event detection for smoke detector
-        GPIO.add_event_detect(
-            self.smoke_detector_pin, 
-            GPIO.BOTH, 
-            callback=self._handle_smoke_detection,
-            bouncetime=300
-        )
+        try:
+            GPIO.add_event_detect(
+                self.smoke_detector_pin, 
+                GPIO.BOTH, 
+                callback=self._handle_smoke_detection,
+                bouncetime=300
+            )
+        except Exception as e:
+            print(f"Error setting up GPIO event detection: {str(e)}")
 
     def add_callback(self, callback):
         """Add a callback function to be called when smoke is detected"""

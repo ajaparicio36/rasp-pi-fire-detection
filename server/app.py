@@ -11,7 +11,7 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initialize handlers
-camera_handler = CameraHandler(fps=20)
+camera_handler = CameraHandler(fps=10)
 alarm_handler = AlarmHandler()
 gpio_handler = GPIOHandler()
 data_handler = DataHandler(gpio_handler, alarm_handler, interval=1.0)
