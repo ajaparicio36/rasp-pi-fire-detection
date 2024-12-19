@@ -138,7 +138,7 @@ def handle_get_status():
 if __name__ == '__main__':
     logger.info("Starting smoke detector application...")
     try:
-        socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
     except Exception as e:
         logger.error(f"Error during application runtime: {str(e)}")
         logger.exception("Runtime error details:")
