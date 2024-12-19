@@ -43,7 +43,7 @@ try:
     alarm_handler = AlarmHandler()
     logger.info("Alarm handler initialized")
     
-    gpio_handler = GPIOHandler()
+    gpio_handler = GPIOHandler(alarm_handler=alarm_handler)
     logger.info("GPIO handler initialized")
     
     data_handler = DataHandler(gpio_handler, alarm_handler, interval=1.0)
