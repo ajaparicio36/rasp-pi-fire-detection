@@ -19,7 +19,12 @@ logger.setLevel(logging.INFO)
 
 class GPIOHandler:
     def __init__(self, alarm_handler, smoke_detector_pin=11):
-        """Initialize GPIO handler for smoke detector"""
+        """
+        Initialize GPIO handler for smoke detector
+        Args:
+            alarm_handler: Instance of AlarmHandler for controlling the alarm
+            smoke_detector_pin (int): GPIO pin number for smoke detector input
+        """
         self.smoke_detector_pin = smoke_detector_pin
         self.alarm_handler = alarm_handler
         self.callbacks = []
@@ -34,8 +39,41 @@ class GPIOHandler:
         self.stable_count_required = 3  # Number of consistent readings required
         self.current_stable_count = 0
         self.last_stable_state = False
+        logger.info("Voltage logger initialized")
         
-        # Rest of initialization code remains the same...
+        # Log GPIO availability
+        if GPIO_AVAILABLE:
+            logger.info("Real GPIO module detected and imported successfully")
+            logger.info(f"GPIO Version: {GPIO.VERSION}")
+            logger.info(f"GPIO RPI Board Revision: {GPIO.RPI_REVISION}")
+        else:
+            logger.warning("Using mock GPIO module - running in development mode")
+            
+        self.setup_gpio()
+
+    def setup_gpio(self):
+        """Setup GPIO pins and initial states"""
+        try:
+            GPIO.setmode(GPIO.BCM)
+            logger.info(f"GPIO mode set to BCM")
+            
+            # Get current mode to verify
+            current_mode = "BCM" if GPIO.getmode() == GPIO.BCM else "BOARD"
+            logger.info(f"Verified GPIO mode is: {current_mode}")
+            
+            # Setup smoke detector pin as input
+            GPIO.setup(self.smoke_detector_pin, GPIO.IN)
+            logger.info(f"Successfully configured GPIO pin {self.smoke_detector_pin} as INPUT")
+            
+            # Initialize reading window with current state
+            initial_state = GPIO.input(self.smoke_detector_pin)
+            self.reading_window.extend([initial_state] * 5)
+            logger.info(f"Initial state of pin {self.smoke_detector_pin}: {initial_state}")
+            
+        except Exception as e:
+            logger.error(f"Failed to setup GPIO pin {self.smoke_detector_pin}: {str(e)}")
+            logger.exception("Detailed GPIO setup error:")
+            raise
 
     def get_stable_state(self):
         """Get the current stable state using a moving window of readings"""
