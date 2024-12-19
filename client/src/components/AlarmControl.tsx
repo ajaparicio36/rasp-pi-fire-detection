@@ -36,6 +36,7 @@ const AlarmControl = ({ socket }: AlarmControlProps) => {
   const handleToggleAlarm = () => {
     if (socket) {
       socket.emit("toggle_alarm");
+      console.log("Toggled alarm");
     }
   };
 
