@@ -1,15 +1,22 @@
 import csv
 import time
 from datetime import datetime
+import os
 
 class VoltageLogger:
-    def __init__(self, log_file="smoke_detector_voltage.csv"):
+    def __init__(self, log_file=None):
         """
         Initialize voltage logger
         Args:
-            log_file (str): Path to CSV file for logging
+            log_file (str): Path to CSV file for logging. If None, uses default path
         """
-        self.log_file = log_file
+        if log_file is None:
+            # Create logs directory if it doesn't exist (matching your app.py structure)
+            os.makedirs('logs', exist_ok=True)
+            self.log_file = os.path.join('logs', 'smoke_detector_voltage.csv')
+        else:
+            self.log_file = log_file
+            
         self.setup_csv()
         
     def setup_csv(self):
