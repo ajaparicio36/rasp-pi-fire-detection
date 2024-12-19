@@ -1,4 +1,9 @@
 import logging
+import time
+import threading
+from collections import deque
+from statistics import mean, median
+from typing import Optional, List, Callable
 try:
     import RPi.GPIO as GPIO
     GPIO_AVAILABLE = True
@@ -7,212 +12,155 @@ except ImportError:
     from modules.mock_gpio import GPIO
     GPIO_AVAILABLE = False
 
-import time
-import threading
-from collections import deque
-from statistics import mean
-from modules.voltage_logger import VoltageLogger
-
-# Setup logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
 class GPIOHandler:
-    def __init__(self, alarm_handler, smoke_detector_pin=11):
-        """
-        Initialize GPIO handler for smoke detector
-        Args:
-            alarm_handler: Instance of AlarmHandler for controlling the alarm
-            smoke_detector_pin (int): GPIO pin number for smoke detector input
-        """
+    def __init__(self, 
+                 alarm_handler,
+                 smoke_detector_pin: int = 11,
+                 sample_window: float = 1.0,  # 1 second sampling window
+                 sample_rate: float = 0.02,   # 50Hz sampling rate
+                 trigger_threshold: float = 0.7,
+                 clear_threshold: float = 0.3,
+                 min_trigger_duration: float = 0.5  # Minimum smoke duration to trigger
+                ):
         self.smoke_detector_pin = smoke_detector_pin
         self.alarm_handler = alarm_handler
-        self.callbacks = []
+        self.callbacks: List[Callable] = []
         self.is_running = False
-        self.last_alarm_trigger_time = 0
-        self.alarm_cooldown = 30  # Cooldown period in seconds
         
-        # Modified state detection settings
-        self.reading_window = deque(maxlen=10)  # Increased from 5 to 10 readings
-        self.state_change_threshold = 0.8  # 80% of readings must agree for a state change
-        self.read_interval = 0.2  # Increased from 0.1 to 0.2 seconds
-        self.stable_count_required = 3  # Number of consistent readings required
-        self.current_stable_count = 0
-        self.last_stable_state = False
-        self.voltage_logger = VoltageLogger()
-        logger.info("Voltage logger initialized")
+        # Sampling configuration
+        self.sample_rate = sample_rate
+        samples_per_window = int(sample_window / sample_rate)
+        self.voltage_buffer = deque(maxlen=samples_per_window)
+        self.filtered_buffer = deque(maxlen=5)  # Stores filtered readings
         
-        # Log GPIO availability
-        if GPIO_AVAILABLE:
-            logger.info("Real GPIO module detected and imported successfully")
-            logger.info(f"GPIO Version: {GPIO.VERSION}")
-            logger.info(f"GPIO RPI Board Revision: {GPIO.RPI_REVISION}")
-        else:
-            logger.warning("Using mock GPIO module - running in development mode")
-            
+        # Thresholds
+        self.trigger_threshold = trigger_threshold
+        self.clear_threshold = clear_threshold
+        self.min_trigger_duration = min_trigger_duration
+        self.trigger_start_time: Optional[float] = None
+        
+        # State tracking
+        self.current_state = False
+        self.last_state_change = time.time()
+        self.state_change_cooldown = 1.0  # Minimum time between state changes
+        
         self.setup_gpio()
-
+        
     def setup_gpio(self):
-        """Setup GPIO pins and initial states"""
-        try:
-            GPIO.setmode(GPIO.BCM)
-            logger.info(f"GPIO mode set to BCM")
+        """Setup GPIO with pull-down resistor to stabilize readings"""
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.smoke_detector_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        
+    def apply_filters(self, readings: deque) -> float:
+        """Apply multiple filtering stages to reduce noise"""
+        if not readings:
+            return 0.0
             
-            # Get current mode to verify
-            current_mode = "BCM" if GPIO.getmode() == GPIO.BCM else "BOARD"
-            logger.info(f"Verified GPIO mode is: {current_mode}")
+        # Stage 1: Remove outliers
+        sorted_readings = sorted(readings)
+        q1, q3 = sorted_readings[len(readings)//4], sorted_readings[3*len(readings)//4]
+        iqr = q3 - q1
+        valid_readings = [x for x in readings if q1 - 1.5*iqr <= x <= q3 + 1.5*iqr]
+        
+        # Stage 2: Moving median filter
+        if not valid_readings:
+            return 0.0
+        median_value = median(valid_readings)
+        
+        # Stage 3: Exponential smoothing
+        alpha = 0.3  # Smoothing factor
+        if not self.filtered_buffer:
+            return median_value
+        prev_filtered = self.filtered_buffer[-1]
+        return alpha * median_value + (1 - alpha) * prev_filtered
+        
+    def check_smoke_state(self, filtered_value: float) -> bool:
+        """Determine smoke state using hysteresis and minimum duration"""
+        current_time = time.time()
+        
+        # Initialize trigger timer if we cross upper threshold
+        if filtered_value >= self.trigger_threshold and self.trigger_start_time is None:
+            self.trigger_start_time = current_time
+            return self.current_state
             
-            # Setup smoke detector pin as input
-            GPIO.setup(self.smoke_detector_pin, GPIO.IN)
-            logger.info(f"Successfully configured GPIO pin {self.smoke_detector_pin} as INPUT")
-            
-            # Initialize reading window with current state
-            initial_state = GPIO.input(self.smoke_detector_pin)
-            self.reading_window.extend([initial_state] * 5)
-            logger.info(f"Initial state of pin {self.smoke_detector_pin}: {initial_state}")
-            
-        except Exception as e:
-            logger.error(f"Failed to setup GPIO pin {self.smoke_detector_pin}: {str(e)}")
-            logger.exception("Detailed GPIO setup error:")
-            raise
-
-    def get_stable_state(self):
-        """Get the current stable state using a moving window of readings"""
-        if not self.reading_window or len(self.reading_window) < self.reading_window.maxlen:
+        # Clear trigger timer if we drop below lower threshold
+        if filtered_value <= self.clear_threshold:
+            self.trigger_start_time = None
             return False
             
-        current_average = mean(self.reading_window)
-        
-        # Check if we're significantly above or below thresholds
-        if current_average >= 0.8:
-            self.current_stable_count = min(self.current_stable_count + 1, self.stable_count_required)
-        elif current_average <= 0.2:
-            self.current_stable_count = max(self.current_stable_count - 1, 0)
-        else:
-            # In between thresholds - maintain current state
-            return self.last_stable_state
-            
-        # Only change state if we've had enough consistent readings
-        if self.current_stable_count >= self.stable_count_required:
-            self.last_stable_state = True
+        # Check if we've maintained high state long enough to trigger
+        if (self.trigger_start_time is not None and 
+            current_time - self.trigger_start_time >= self.min_trigger_duration):
             return True
-        elif self.current_stable_count <= 0:
-            self.last_stable_state = False
-            return False
             
-        return self.last_stable_state
-
-    def handle_smoke_detection(self, state):
-        """Handle smoke detection state changes and control alarm"""
-        try:
-            current_time = time.time()
-            alarm_status = self.alarm_handler.get_status()
-            
-            if state:  # Smoke detected
-                # Only trigger if we've been in smoke state for enough readings
-                if (self.current_stable_count >= self.stable_count_required and
-                    alarm_status.get('alarm_enabled', True) and 
-                    not alarm_status.get('alarm_active', False) and 
-                    current_time - self.last_alarm_trigger_time >= self.alarm_cooldown):
-                    
-                    logger.warning("Smoke detected consistently - activating alarm")
-                    if self.alarm_handler.activate():
-                        self.last_alarm_trigger_time = current_time
-                    
-            else:  # No smoke detected
-                # Only deactivate if we're sure there's no smoke for several readings
-                if (alarm_status.get('alarm_active', False) and 
-                    self.current_stable_count <= 0 and
-                    mean(self.reading_window) < 0.2):  # Extra safety check
-                    
-                    logger.info("Smoke cleared consistently - deactivating alarm")
-                    self.alarm_handler.deactivate()
-                
-        except Exception as e:
-            logger.error(f"Error handling smoke detection: {str(e)}")
-
-    def _continuous_detection(self):
-        """Continuously poll the smoke detector pin"""
-        last_stable_state = self.get_stable_state()
-        logger.info(f"Starting continuous detection with initial state: {last_stable_state}")
+        return self.current_state
         
+    def _continuous_detection(self):
+        """Improved continuous sampling with better noise handling"""
         while self.is_running:
             try:
-                 # Read current pin state
+                # Read current value
                 current_reading = GPIO.input(self.smoke_detector_pin)
-                self.reading_window.append(current_reading)
+                self.voltage_buffer.append(current_reading)
                 
-                # Get stable state
-                current_stable_state = self.get_stable_state()
-                window_average = mean(self.reading_window)
+                # Only process if we have enough samples
+                if len(self.voltage_buffer) >= self.voltage_buffer.maxlen:
+                    # Apply filtering
+                    filtered_value = self.apply_filters(self.voltage_buffer)
+                    self.filtered_buffer.append(filtered_value)
+                    
+                    # Determine smoke state
+                    new_state = self.check_smoke_state(filtered_value)
+                    
+                    # Handle state changes with cooldown
+                    current_time = time.time()
+                    if (new_state != self.current_state and 
+                        current_time - self.last_state_change >= self.state_change_cooldown):
+                        
+                        self.current_state = new_state
+                        self.last_state_change = current_time
+                        
+                        # Handle alarm control
+                        if new_state:
+                            self.alarm_handler.activate()
+                        else:
+                            self.alarm_handler.deactivate()
+                            
+                        # Notify callbacks
+                        for callback in self.callbacks:
+                            try:
+                                callback(new_state)
+                            except Exception as e:
+                                logging.error(f"Callback error: {str(e)}")
                 
-                # Log the voltage reading
-                alarm_status = self.alarm_handler.get_status()
-                self.voltage_logger.log_reading(
-                    raw_reading=current_reading,
-                    stable_state=current_stable_state,
-                    window_average=window_average,
-                    alarm_active=alarm_status.get('alarm_active', False)
-                )
+                time.sleep(self.sample_rate)
                 
-                # Check for state change
-                if current_stable_state != last_stable_state:
-                    logger.info(f"State change detected on pin {self.smoke_detector_pin}: {last_stable_state} -> {current_stable_state}")
-                    # Handle smoke detection first
-                    self.handle_smoke_detection(current_stable_state)
-                    # Then notify other callbacks
-                    for callback in self.callbacks:
-                        try:
-                            callback(current_stable_state)
-                        except Exception as e:
-                            logger.error(f"Error in callback: {str(e)}")
-                    last_stable_state = current_stable_state
-                
-                time.sleep(self.read_interval)
             except Exception as e:
-                logger.error(f"Error reading GPIO pin: {str(e)}")
-                time.sleep(1)  # Wait longer before retrying on error
-
+                logging.error(f"Sampling error: {str(e)}")
+                time.sleep(1)
+                
     def start_detection(self):
-        """Start continuous smoke detection in a separate thread"""
+        """Start the detection thread"""
         self.is_running = True
         self.detection_thread = threading.Thread(target=self._continuous_detection)
         self.detection_thread.daemon = True
         self.detection_thread.start()
-        logger.info("Smoke detection thread started")
-
+        
     def stop_detection(self):
-        """Stop continuous smoke detection"""
+        """Stop the detection thread"""
         self.is_running = False
         if hasattr(self, 'detection_thread'):
             self.detection_thread.join()
-            logger.info("Smoke detection thread stopped")
-
-    def add_callback(self, callback):
-        """Add a callback function to be called when smoke state changes"""
-        self.callbacks.append(callback)
-        logger.info(f"New callback registered. Total callbacks: {len(self.callbacks)}")
-
+            
     def get_status(self):
-        """Get current status of smoke detector"""
-        try:
-            stable_state = self.get_stable_state()
-            logger.debug(f"Current stable state: {stable_state}")
-            return {
-                'smoke_detected': stable_state
-            }
-        except Exception as e:
-            logger.error(f"Error reading pin status: {str(e)}")
-            return {
-                'smoke_detected': None,
-                'error': str(e)
-            }
-
+        """Get current detector status"""
+        return {
+            'smoke_detected': self.current_state,
+            'filtered_value': self.filtered_buffer[-1] if self.filtered_buffer else 0.0,
+            'raw_readings': list(self.voltage_buffer)
+        }
+        
     def cleanup(self):
         """Cleanup GPIO resources"""
         self.stop_detection()
-        try:
-            GPIO.cleanup([self.smoke_detector_pin])
-            logger.info(f"GPIO cleanup completed for pin {self.smoke_detector_pin}")
-        except Exception as e:
-            logger.error(f"Error during GPIO cleanup: {str(e)}")
+        GPIO.cleanup([self.smoke_detector_pin])
