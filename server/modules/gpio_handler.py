@@ -4,6 +4,7 @@ import threading
 from collections import deque
 from statistics import mean, median
 from typing import Optional, List, Callable
+
 try:
     import RPi.GPIO as GPIO
     GPIO_AVAILABLE = True
@@ -11,6 +12,10 @@ except ImportError:
     print("Running in development mode - GPIO functions will be mocked")
     from modules.mock_gpio import GPIO
     GPIO_AVAILABLE = False
+
+# Setup module logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class GPIOHandler:
     def __init__(self, 
@@ -44,12 +49,29 @@ class GPIOHandler:
         self.last_state_change = time.time()
         self.state_change_cooldown = 1.0  # Minimum time between state changes
         
+        # Log initialization
+        if GPIO_AVAILABLE:
+            logger.info("Initializing GPIOHandler with real GPIO")
+            logger.info(f"GPIO Version: {GPIO.VERSION}")
+        else:
+            logger.warning("Initializing GPIOHandler with mock GPIO")
+            
+        logger.info(f"Initializing smoke detector on pin {smoke_detector_pin}")
         self.setup_gpio()
         
     def setup_gpio(self):
-        """Setup GPIO with pull-down resistor to stabilize readings qqq"""
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.smoke_detector_pin, GPIO.IN)
+        """Setup GPIO with pull-down resistor to stabilize readings"""
+        try:
+            GPIO.setmode(GPIO.BCM)
+            logger.info("GPIO mode set to BCM")
+            
+            GPIO.setup(self.smoke_detector_pin, GPIO.IN)
+            logger.info(f"Successfully configured GPIO pin {self.smoke_detector_pin} as INPUT")
+            
+        except Exception as e:
+            logger.error(f"Error setting up GPIO pin {self.smoke_detector_pin}: {str(e)}")
+            logger.exception("GPIO setup error details:")
+            raise
         
     def apply_filters(self, readings: deque) -> float:
         """Apply multiple filtering stages to reduce noise"""
@@ -131,12 +153,12 @@ class GPIOHandler:
                             try:
                                 callback(new_state)
                             except Exception as e:
-                                logging.error(f"Callback error: {str(e)}")
+                                logger.error(f"Callback error: {str(e)}")
                 
                 time.sleep(self.sample_rate)
                 
             except Exception as e:
-                logging.error(f"Sampling error: {str(e)}")
+                logger.error(f"Sampling error: {str(e)}")
                 time.sleep(1)
                 
     def start_detection(self):
@@ -145,22 +167,30 @@ class GPIOHandler:
         self.detection_thread = threading.Thread(target=self._continuous_detection)
         self.detection_thread.daemon = True
         self.detection_thread.start()
+        logger.info("Smoke detection started")
         
     def stop_detection(self):
         """Stop the detection thread"""
         self.is_running = False
         if hasattr(self, 'detection_thread'):
             self.detection_thread.join()
+        logger.info("Smoke detection stopped")
             
     def get_status(self):
         """Get current detector status"""
-        return {
+        status = {
             'smoke_detected': self.current_state,
             'filtered_value': self.filtered_buffer[-1] if self.filtered_buffer else 0.0,
             'raw_readings': list(self.voltage_buffer)
         }
+        logger.debug(f"Current detector status: {status}")
+        return status
         
     def cleanup(self):
         """Cleanup GPIO resources"""
         self.stop_detection()
-        GPIO.cleanup([self.smoke_detector_pin])
+        try:
+            GPIO.cleanup([self.smoke_detector_pin])
+            logger.info(f"GPIO cleanup completed for smoke detector pin {self.smoke_detector_pin}")
+        except Exception as e:
+            logger.error(f"Error during GPIO cleanup: {str(e)}")
