@@ -73,10 +73,6 @@ def handle_smoke_detection(is_smoke_detected):
     except Exception as e:
         logger.error(f"Error in smoke detection handler: {str(e)}")
 
-# Register smoke detection callback
-gpio_handler.add_callback(handle_smoke_detection)
-logger.info("Smoke detection callback registered")
-
 @socketio.on('connect')
 def handle_connect():
     logger.info("Client connected")
