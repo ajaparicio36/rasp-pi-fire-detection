@@ -1,11 +1,16 @@
 # modules/alarm_handler.py
+import logging
 try:
     import RPi.GPIO as GPIO
+    GPIO_AVAILABLE = True
 except ImportError:
     print("Running in development mode - GPIO functions will be mocked")
     from modules.mock_gpio import GPIO
+    GPIO_AVAILABLE = False
 
-
+# Setup module logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class AlarmHandler:
     def __init__(self, alarm_pin=18):
@@ -18,47 +23,101 @@ class AlarmHandler:
         self.alarm_pin = alarm_pin
         self.is_enabled = True
         self.is_active = False
+        
+        # Log initialization
+        if GPIO_AVAILABLE:
+            logger.info("Initializing AlarmHandler with real GPIO")
+            logger.info(f"GPIO Version: {GPIO.VERSION}")
+        else:
+            logger.warning("Initializing AlarmHandler with mock GPIO")
+            
+        logger.info(f"Initializing alarm on pin {alarm_pin}")
         self.setup_alarm()
 
     def setup_alarm(self):
         """Setup alarm GPIO pin"""
-        GPIO.setmode(GPIO.BCM)
         try:
+            GPIO.setmode(GPIO.BCM)
+            logger.info("GPIO mode set to BCM")
+            
             GPIO.setup(self.alarm_pin, GPIO.OUT)
-        except RuntimeError as e:
-            print(f"Error setting up GPIO pin {self.alarm_pin}: {str(e)}")
-            # Handle the error, e.g., use a different pin or log the issue
+            logger.info(f"Successfully configured GPIO pin {self.alarm_pin} as OUTPUT")
+            
+            # Ensure alarm starts in deactivated state
             GPIO.output(self.alarm_pin, GPIO.LOW)
+            logger.info("Alarm initialized in deactivated state")
+            
+        except Exception as e:
+            logger.error(f"Error setting up alarm on GPIO pin {self.alarm_pin}: {str(e)}")
+            logger.exception("Alarm setup error details:")
+            raise
 
     def activate(self):
         """Activate the alarm if it's enabled"""
         if self.is_enabled:
-            GPIO.output(self.alarm_pin, GPIO.HIGH)
-            self.is_active = True
-            return True
-        return False
+            try:
+                GPIO.output(self.alarm_pin, GPIO.HIGH)
+                self.is_active = True
+                logger.warning("🚨 ALARM ACTIVATED 🚨")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to activate alarm: {str(e)}")
+                return False
+        else:
+            logger.info("Alarm activation prevented - alarm is disabled")
+            return False
 
     def deactivate(self):
         """Deactivate the alarm"""
-        GPIO.output(self.alarm_pin, GPIO.LOW)
-        self.is_active = False
-        return True
+        try:
+            GPIO.output(self.alarm_pin, GPIO.LOW)
+            self.is_active = False
+            logger.info("Alarm deactivated")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to deactivate alarm: {str(e)}")
+            return False
 
     def toggle_enable(self):
         """Toggle whether the alarm can be activated"""
-        self.is_enabled = not self.is_enabled
-        if not self.is_enabled:
-            self.deactivate()
-        return self.is_enabled
+        try:
+            self.is_enabled = not self.is_enabled
+            state_str = "enabled" if self.is_enabled else "disabled"
+            logger.info(f"Alarm system {state_str}")
+            
+            if not self.is_enabled:
+                logger.info("Deactivating alarm due to system disable")
+                self.deactivate()
+                
+            return self.is_enabled
+        except Exception as e:
+            logger.error(f"Error toggling alarm state: {str(e)}")
+            return self.is_enabled
 
     def get_status(self):
         """Get current status of the alarm"""
-        return {
-            'is_active': self.is_active,
-            'is_enabled': self.is_enabled
-        }
+        try:
+            status = {
+                'is_active': self.is_active,
+                'is_enabled': self.is_enabled
+            }
+            logger.debug(f"Current alarm status: {status}")
+            return status
+        except Exception as e:
+            logger.error(f"Error getting alarm status: {str(e)}")
+            return {
+                'is_active': False,
+                'is_enabled': False,
+                'error': str(e)
+            }
 
     def cleanup(self):
         """Cleanup GPIO resources"""
-        self.deactivate()
-        GPIO.cleanup([self.alarm_pin])
+        try:
+            logger.info("Starting alarm cleanup...")
+            if self.is_active:
+                self.deactivate()
+            GPIO.cleanup([self.alarm_pin])
+            logger.info(f"GPIO cleanup completed for alarm pin {self.alarm_pin}")
+        except Exception as e:
+            logger.error(f"Error during alarm cleanup: {str(e)}")
