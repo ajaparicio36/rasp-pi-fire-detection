@@ -39,6 +39,7 @@ class GPIOHandler:
         self.stable_count_required = 3  # Number of consistent readings required
         self.current_stable_count = 0
         self.last_stable_state = False
+        self.voltage_logger = VoltageLogger()
         logger.info("Voltage logger initialized")
         
         # Log GPIO availability
