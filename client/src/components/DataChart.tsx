@@ -11,7 +11,7 @@ import {
   Legend,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
-import { Activity, Bell, Clock } from "lucide-react";
+import { Activity, Bell, Clock, ToggleLeft } from "lucide-react";
 
 ChartJS.register(
   CategoryScale,
@@ -30,13 +30,20 @@ interface DataPoint {
   alarm_enabled: boolean;
 }
 
+interface Summary {
+  smoke_detections: number;
+  alarm_activations: number;
+  uptime: number;
+  error?: string;
+}
+
 interface DataChartProps {
   socket: Socket | null;
 }
 
 const DataChart = ({ socket }: DataChartProps) => {
   const [dataPoints, setDataPoints] = useState<DataPoint[]>([]);
-  const [summary, setSummary] = useState({
+  const [summary, setSummary] = useState<Summary>({
     smoke_detections: 0,
     alarm_activations: 0,
     uptime: 0,
@@ -70,16 +77,19 @@ const DataChart = ({ socket }: DataChartProps) => {
   useEffect(() => {
     if (!socket) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    socket.on("full_dataset", (data: { data: DataPoint[]; summary: any }) => {
-      setDataPoints(filterDataPoints(data.data, 10, 120));
-      setSummary(data.summary);
-    });
+    socket.on(
+      "full_dataset",
+      (data: { data: DataPoint[]; summary: Summary }) => {
+        setDataPoints(filterDataPoints(data.data, 10, 120));
+        setSummary(data.summary);
+      }
+    );
 
     socket.on("new_data_point", (point: DataPoint) => {
       setDataPoints((prev) => filterDataPoints([...prev, point], 10, 120));
     });
 
+    // Request initial data
     socket.emit("get_historical_data");
 
     return () => {
@@ -111,6 +121,13 @@ const DataChart = ({ socket }: DataChartProps) => {
         backgroundColor: "rgba(59, 130, 246, 0.5)",
         tension: 0.2,
       },
+      {
+        label: "Alarm Enabled",
+        data: dataPoints.map((point) => (point.alarm_enabled ? 1 : 0)),
+        borderColor: "rgb(34, 197, 94)",
+        backgroundColor: "rgba(34, 197, 94, 0.5)",
+        tension: 0.2,
+      },
     ],
   };
 
@@ -134,7 +151,7 @@ const DataChart = ({ socket }: DataChartProps) => {
     scales: {
       x: {
         ticks: {
-          maxTicksLimit: 12, // Show about 10 ticks on the x-axis
+          maxTicksLimit: 12,
           maxRotation: 0,
           minRotation: 0,
         },
@@ -151,7 +168,7 @@ const DataChart = ({ socket }: DataChartProps) => {
 
   return (
     <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-6 border border-gray-100">
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-4 gap-4 mb-8">
         <StatCard
           icon={<Activity className="text-blue-600" />}
           title="Smoke Detections"
@@ -178,10 +195,23 @@ const DataChart = ({ socket }: DataChartProps) => {
           textColor="text-green-900"
           valueColor="text-green-600"
         />
+        <StatCard
+          icon={<ToggleLeft className="text-purple-600" />}
+          title="System Status"
+          value={summary.error ? "Error" : "Operational"}
+          bgColor="bg-purple-50"
+          textColor="text-purple-900"
+          valueColor={summary.error ? "text-red-600" : "text-purple-600"}
+        />
       </div>
       <div className="h-[300px]">
         <Line options={options} data={chartData} />
       </div>
+      {summary.error && (
+        <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
+          <p className="text-red-700 text-sm">Error: {summary.error}</p>
+        </div>
+      )}
     </div>
   );
 };
