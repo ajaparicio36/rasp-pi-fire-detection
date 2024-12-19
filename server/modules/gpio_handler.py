@@ -11,6 +11,7 @@ import time
 import threading
 from collections import deque
 from statistics import mean
+from modules.voltage_logger import VoltageLogger
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -35,6 +36,8 @@ class GPIOHandler:
         self.reading_window = deque(maxlen=5)  # Keep last 5 readings for stability
         self.state_change_threshold = 0.7  # 70% of readings must agree for a state change
         self.read_interval = 0.1  # Time between readings in seconds
+        self.voltage_logger = VoltageLogger()
+        logger.info("Voltage logger initialized")
         
         # Log GPIO availability
         if GPIO_AVAILABLE:
