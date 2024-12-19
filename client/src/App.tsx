@@ -11,7 +11,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   useEffect(() => {
-    const newSocket = io("http://192.168.68.183:5000/");
+    const newSocket = io("http://localhost:5000/");
     setSocket(newSocket);
 
     return () => {
