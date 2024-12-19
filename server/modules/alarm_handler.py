@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class AlarmHandler:
-    def __init__(self, alarm_pin=18):
+    def __init__(self, alarm_pin=12):
         """
         Initialize the alarm handler
         

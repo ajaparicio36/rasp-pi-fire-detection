@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class GPIOHandler:
-    def __init__(self, smoke_detector_pin=17):
+    def __init__(self, smoke_detector_pin=11):
         """
         Initialize GPIO handler for smoke detector
         Args:
