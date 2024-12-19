@@ -8,7 +8,7 @@ except ImportError:
 
 
 class AlarmHandler:
-    def __init__(self, alarm_pin=17):
+    def __init__(self, alarm_pin=18):
         """
         Initialize the alarm handler
         

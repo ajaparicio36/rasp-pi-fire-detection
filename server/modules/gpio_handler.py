@@ -9,7 +9,7 @@ import time
 import threading
 
 class GPIOHandler:
-    def __init__(self, smoke_detector_pin=18):
+    def __init__(self, smoke_detector_pin=17):
         """
         Initialize GPIO handler for smoke detector
         Args:
