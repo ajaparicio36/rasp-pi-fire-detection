@@ -124,12 +124,22 @@ class GPIOHandler:
         
         while self.is_running:
             try:
-                # Read current pin state
+                 # Read current pin state
                 current_reading = GPIO.input(self.smoke_detector_pin)
                 self.reading_window.append(current_reading)
                 
                 # Get stable state
                 current_stable_state = self.get_stable_state()
+                window_average = mean(self.reading_window)
+                
+                # Log the voltage reading
+                alarm_status = self.alarm_handler.get_status()
+                self.voltage_logger.log_reading(
+                    raw_reading=current_reading,
+                    stable_state=current_stable_state,
+                    window_average=window_average,
+                    alarm_active=alarm_status.get('alarm_active', False)
+                )
                 
                 # Check for state change
                 if current_stable_state != last_stable_state:
