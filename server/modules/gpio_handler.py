@@ -49,7 +49,7 @@ class GPIOHandler:
     def setup_gpio(self):
         """Setup GPIO with pull-down resistor to stabilize readings"""
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(self.smoke_detector_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        GPIO.setup(self.smoke_detector_pin, GPIO.IN)
         
     def apply_filters(self, readings: deque) -> float:
         """Apply multiple filtering stages to reduce noise"""
