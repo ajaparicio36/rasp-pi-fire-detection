@@ -98,16 +98,16 @@ class AlarmHandler:
         """Get current status of the alarm"""
         try:
             status = {
-                'is_active': self.is_active,
-                'is_enabled': self.is_enabled
+                'alarm_active': self.is_active,
+                'alarm_enabled': self.is_enabled
             }
             logger.debug(f"Current alarm status: {status}")
             return status
         except Exception as e:
             logger.error(f"Error getting alarm status: {str(e)}")
             return {
-                'is_active': False,
-                'is_enabled': False,
+                'alarm_active': False,
+                'alarm_enabled': False,
                 'error': str(e)
             }
 

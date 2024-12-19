@@ -110,12 +110,23 @@ def handle_disconnect():
 @socketio.on('toggle_alarm')
 def handle_toggle_alarm():
     try:
+        logger.info("Received alarm toggle request")
         enabled = alarm_handler.toggle_enable()
-        socketio.emit('alarm_status', {'enabled': enabled})
-        logger.info(f"Alarm toggled: {'enabled' if enabled else 'disabled'}")
+        status = {'alarm_enabled': enabled}  # Match the frontend property name
+        logger.info(f"Alarm toggled - new state: {status}")
+        socketio.emit('alarm_status', status)
+        
+        # Also emit a full status update
+        full_status = {
+            **gpio_handler.get_status(),
+            **alarm_handler.get_status()
+        }
+        logger.info(f"Emitting full status update: {full_status}")
+        socketio.emit('status_update', full_status)
     except Exception as e:
         logger.error(f"Error toggling alarm: {str(e)}")
 
+        
 @socketio.on('get_status')
 def handle_get_status():
     try:
