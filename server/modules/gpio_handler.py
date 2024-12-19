@@ -1,4 +1,3 @@
-# modules/gpio_handler.py
 import logging
 try:
     import RPi.GPIO as GPIO
@@ -16,15 +15,19 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class GPIOHandler:
-    def __init__(self, smoke_detector_pin=11):
+    def __init__(self, alarm_handler, smoke_detector_pin=11):
         """
         Initialize GPIO handler for smoke detector
         Args:
-        smoke_detector_pin (int): GPIO pin number for smoke detector input
+            alarm_handler: Instance of AlarmHandler for controlling the alarm
+            smoke_detector_pin (int): GPIO pin number for smoke detector input
         """
         self.smoke_detector_pin = smoke_detector_pin
+        self.alarm_handler = alarm_handler
         self.callbacks = []
         self.is_running = False
+        self.last_alarm_trigger_time = 0
+        self.alarm_cooldown = 30  # Cooldown period in seconds before triggering alarm again
         
         # Log GPIO availability
         if GPIO_AVAILABLE:
@@ -59,6 +62,38 @@ class GPIOHandler:
             logger.exception("Detailed GPIO setup error:")
             raise
 
+    def handle_smoke_detection(self, state):
+        """
+        Handle smoke detection state changes and control alarm
+        Args:
+            state: Current state of smoke detector (True for smoke detected)
+        """
+        try:
+            current_time = time.time()
+            alarm_status = self.alarm_handler.get_status()
+            
+            if state:  # Smoke detected
+                logger.warning("Smoke detected! Checking alarm conditions...")
+                
+                # Check if alarm is enabled and not already active
+                if (alarm_status.get('alarm_enabled', True) and 
+                    not alarm_status.get('alarm_active', False) and 
+                    current_time - self.last_alarm_trigger_time >= self.alarm_cooldown):
+                    
+                    logger.info("Activating alarm due to smoke detection")
+                    if self.alarm_handler.activate():  # Using correct method name
+                        self.last_alarm_trigger_time = current_time
+                    
+            else:  # No smoke detected
+                # Optionally deactivate alarm when smoke clears
+                if alarm_status.get('alarm_active', False):
+                    logger.info("Smoke cleared, deactivating alarm")
+                    self.alarm_handler.deactivate()  # Using correct method name
+                
+        except Exception as e:
+            logger.error(f"Error handling smoke detection: {str(e)}")
+            logger.exception("Smoke detection handling error details:")
+
     def start_detection(self):
         """Start continuous smoke detection in a separate thread"""
         self.is_running = True
@@ -85,6 +120,9 @@ class GPIOHandler:
                 
                 if current_state != last_state:
                     logger.info(f"State change detected on pin {self.smoke_detector_pin}: {last_state} -> {current_state}")
+                    # Handle smoke detection first
+                    self.handle_smoke_detection(current_state)
+                    # Then notify other callbacks
                     for callback in self.callbacks:
                         try:
                             callback(current_state)
