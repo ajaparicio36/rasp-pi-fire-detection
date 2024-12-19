@@ -47,7 +47,7 @@ class GPIOHandler:
         self.setup_gpio()
         
     def setup_gpio(self):
-        """Setup GPIO with pull-down resistor to stabilize readings"""
+        """Setup GPIO with pull-down resistor to stabilize readings qqq"""
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.smoke_detector_pin, GPIO.IN)
         
